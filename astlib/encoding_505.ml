@@ -8,6 +8,12 @@ module Ext_name = struct
   let external_psig = "ppxlib.migration.external_psig_5_5"
   let external_pstr_type = "ppxlib.migration.external_pstr_type_5_5"
   let external_pmty_with = "ppxlib.migration.external_pmty_with_5_5"
+
+    let pexp_quote = "ppxlib.migration.pexp_quote_5_5"
+  let pexp_splice = "ppxlib.migration.pexp_splice_5_5"
+  let pstr_value_macro = "ppxlib.migration.pstr_value_macro_5_5"
+  let pval_macro = "ppxlib.migration.pval_macro_5_5"
+  let template = "ppxlib.migration.template_5_5"
 end
 
 let invalid_encoding ~loc name =
@@ -202,4 +208,47 @@ module To_504 = struct
     Ppat_constraint
       ( { pattern with ppat_attributes = flag :: pattern.ppat_attributes },
         core_type )
+
+  
+  let encode_macocaml_expr name ~loc e =
+    let item = { pstr_desc = Pstr_eval (e, []); pstr_loc = loc } in
+    Pexp_extension ({ txt = name; loc }, PStr [ item ])
+
+  let decode_macocaml_expr name ~loc payload =
+    match payload with
+    | PStr [ { pstr_desc = Pstr_eval (e, []); _ } ] -> e
+    | _ -> invalid_encoding ~loc name
+
+  let encode_pexp_quote ~loc e = encode_macocaml_expr Ext_name.pexp_quote ~loc e
+  let decode_pexp_quote ~loc p = decode_macocaml_expr Ext_name.pexp_quote ~loc p
+
+  let encode_pexp_splice ~loc e =
+    encode_macocaml_expr Ext_name.pexp_splice ~loc e
+
+  let decode_pexp_splice ~loc p =
+    decode_macocaml_expr Ext_name.pexp_splice ~loc p
+
+  let encode_pstr_value_macro ~loc rec_flag vbs =
+    let item = { pstr_desc = Pstr_value (rec_flag, vbs); pstr_loc = loc } in
+    Pstr_extension
+      (({ txt = Ext_name.pstr_value_macro; loc }, PStr [ item ]), [])
+
+  let decode_pstr_value_macro ~loc payload =
+    match payload with
+    | PStr [ { pstr_desc = Pstr_value (rec_flag, vbs); _ } ] -> (rec_flag, vbs)
+    | _ -> invalid_encoding ~loc Ext_name.pstr_value_macro
+
+  let marker_attr name ~loc =
+    let loc = { loc with Location.loc_ghost = true } in
+    { attr_name = { txt = name; loc }; attr_payload = PStr []; attr_loc = loc }
+
+  let extract_marker name attrs =
+    List.without_first attrs ~pred:(fun attr ->
+        String.equal attr.attr_name.txt name)
+    |> Option.map snd
+
+  let pval_macro_attr ~loc = marker_attr Ext_name.pval_macro ~loc
+  let extract_pval_macro attrs = extract_marker Ext_name.pval_macro attrs
+  let template_attr ~loc = marker_attr Ext_name.template ~loc
+  let extract_template attrs = extract_marker Ext_name.template attrs
 end

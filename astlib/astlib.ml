@@ -95,6 +95,8 @@ end
 
 module Clean = Clean
 
+module Encoding_505 = Encoding_505
+
 let init_error_reporting_style_using_env_vars () =
   Ocaml_common.Compmisc.read_clflags_from_env ()
 (** Adjust the reporting style of error messages to the environment variables OCAML_COLOR and OCAML_ERROR_STYLE. *)

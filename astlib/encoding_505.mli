@@ -6,6 +6,18 @@ module Ext_name : sig
   val external_psig : string
   val external_pstr_type : string
   val external_pmty_with : string
+
+  (** MacoCaml constructs (T29): extension/attribute names used to carry
+      quotes, splices, macro bindings and template functors across the
+      504 migration gap.  Rewriters may also construct these nodes
+      directly (e.g. to emit a splice); the 504->505 upgrade migration
+      materialises them into real Parsetree constructs. *)
+
+  val pexp_quote : string
+  val pexp_splice : string
+  val pstr_value_macro : string
+  val pval_macro : string
+  val template : string
 end
 
 module To_504 : sig
@@ -64,4 +76,31 @@ module To_504 : sig
       [Ppat_constraint]. *)
 
   val preserve_ppat_constraint : pattern -> core_type -> pattern_desc
+
+  (** {2 MacoCaml constructs (T29)} *)
+
+  val encode_pexp_quote : loc:Location.t -> expression -> expression_desc
+  val decode_pexp_quote : loc:Location.t -> payload -> expression
+  val encode_pexp_splice : loc:Location.t -> expression -> expression_desc
+  val decode_pexp_splice : loc:Location.t -> payload -> expression
+
+  val encode_pstr_value_macro :
+    loc:Location.t -> rec_flag -> value_binding list -> structure_item_desc
+
+  val decode_pstr_value_macro :
+    loc:Location.t -> payload -> rec_flag * value_binding list
+
+  val pval_macro_attr : loc:Location.t -> attribute
+
+  val extract_pval_macro : attributes -> attributes option
+  (** Returns [Some rest] (the attributes minus the marker) if the
+      [pval_macro] marker is present, [None] otherwise. *)
+
+  val template_attr : loc:Location.t -> attribute
+
+  val extract_template : attributes -> attributes option
+  (** As {!extract_pval_macro}, for the [template] marker.  The marker
+      sits on the child node the encoding designates: the body of an
+      encoded template [Pmty_functor]/[Pmod_functor], and the functor
+      position of an encoded template [Pmod_apply]/[Pmod_apply_unit]. *)
 end

@@ -38,6 +38,14 @@ module External_type = struct
        to 5.4"
 end
 
+let mark_template_mod (me : Ast_504.Parsetree.module_expr) =
+  {
+    me with
+    Ast_504.Parsetree.pmod_attributes =
+      Encoding_505.To_504.template_attr ~loc:me.Ast_504.Parsetree.pmod_loc
+      :: me.Ast_504.Parsetree.pmod_attributes;
+  }
+
 let copy_location x = x
 
 let rec copy_longident : Ast_505.Longident.t -> Ast_504.Longident.t = function
@@ -546,6 +554,12 @@ and copy_expression_desc :
         (copy_module_expr x0, Option.map copy_package_type x1)
   | Ast_505.Parsetree.Pexp_letop x0 ->
       Ast_504.Parsetree.Pexp_letop (copy_letop x0)
+  | Ast_505.Parsetree.Pexp_quote x0 ->
+      Encoding_505.To_504.encode_pexp_quote ~loc:x0.pexp_loc
+        (copy_expression x0)
+  | Ast_505.Parsetree.Pexp_splice x0 ->
+      Encoding_505.To_504.encode_pexp_splice ~loc:x0.pexp_loc
+        (copy_expression x0)
   | Ast_505.Parsetree.Pexp_extension x0 ->
       Ast_504.Parsetree.Pexp_extension (copy_extension x0)
   | Ast_505.Parsetree.Pexp_unreachable -> Ast_504.Parsetree.Pexp_unreachable
@@ -623,16 +637,24 @@ and copy_value_description :
     Ast_505.Parsetree.value_description -> Ast_504.Parsetree.value_description =
  fun {
        Ast_505.Parsetree.pval_name;
+       Ast_505.Parsetree.pval_macro;
        Ast_505.Parsetree.pval_type;
        Ast_505.Parsetree.pval_prim;
        Ast_505.Parsetree.pval_attributes;
        Ast_505.Parsetree.pval_loc;
      } ->
+  let macro_attrs =
+    match pval_macro with
+    | Ast_505.Asttypes.Value -> []
+    | Ast_505.Asttypes.Macro ->
+        [ Encoding_505.To_504.pval_macro_attr ~loc:pval_loc ]
+  in
   {
     Ast_504.Parsetree.pval_name = copy_loc (fun x -> x) pval_name;
     Ast_504.Parsetree.pval_type = copy_core_type pval_type;
     Ast_504.Parsetree.pval_prim = List.map (fun x -> x) pval_prim;
-    Ast_504.Parsetree.pval_attributes = copy_attributes pval_attributes;
+    Ast_504.Parsetree.pval_attributes =
+      macro_attrs @ copy_attributes pval_attributes;
     Ast_504.Parsetree.pval_loc = copy_location pval_loc;
   }
 
@@ -1054,9 +1076,21 @@ and copy_module_type_desc_with_loc ~loc :
       Ast_504.Parsetree.Pmty_ident (copy_loc copy_longident x0)
   | Ast_505.Parsetree.Pmty_signature x0 ->
       Ast_504.Parsetree.Pmty_signature (copy_signature x0)
-  | Ast_505.Parsetree.Pmty_functor (x0, x1) ->
+  | Ast_505.Parsetree.Pmty_functor (Ast_505.Asttypes.Plain, x0, x1) ->
       Ast_504.Parsetree.Pmty_functor
         (copy_functor_parameter x0, copy_module_type x1)
+  | Ast_505.Parsetree.Pmty_functor (Ast_505.Asttypes.Template, x0, x1) ->
+      let mty = copy_module_type x1 in
+      let mty =
+        {
+          mty with
+          Ast_504.Parsetree.pmty_attributes =
+            Encoding_505.To_504.template_attr
+              ~loc:mty.Ast_504.Parsetree.pmty_loc
+            :: mty.Ast_504.Parsetree.pmty_attributes;
+        }
+      in
+      Ast_504.Parsetree.Pmty_functor (copy_functor_parameter x0, mty)
   | Ast_505.Parsetree.Pmty_with (x0, x1) ->
       let mty = copy_module_type x0 in
       let constraints = External_type.list_map ~f:copy_with_constraint_ x1 in
@@ -1297,13 +1331,22 @@ and copy_module_expr_desc :
       Ast_504.Parsetree.Pmod_ident (copy_loc copy_longident x0)
   | Ast_505.Parsetree.Pmod_structure x0 ->
       Ast_504.Parsetree.Pmod_structure (copy_structure x0)
-  | Ast_505.Parsetree.Pmod_functor (x0, x1) ->
+  | Ast_505.Parsetree.Pmod_functor (Ast_505.Asttypes.Plain, x0, x1) ->
       Ast_504.Parsetree.Pmod_functor
         (copy_functor_parameter x0, copy_module_expr x1)
-  | Ast_505.Parsetree.Pmod_apply (x0, x1) ->
+  | Ast_505.Parsetree.Pmod_functor (Ast_505.Asttypes.Template, x0, x1) ->
+      Ast_504.Parsetree.Pmod_functor
+        (copy_functor_parameter x0, mark_template_mod (copy_module_expr x1))
+  | Ast_505.Parsetree.Pmod_apply (Ast_505.Asttypes.Plain, x0, x1) ->
       Ast_504.Parsetree.Pmod_apply (copy_module_expr x0, copy_module_expr x1)
-  | Ast_505.Parsetree.Pmod_apply_unit x0 ->
+  | Ast_505.Parsetree.Pmod_apply (Ast_505.Asttypes.Template, x0, x1) ->
+      Ast_504.Parsetree.Pmod_apply
+        (mark_template_mod (copy_module_expr x0), copy_module_expr x1)
+  | Ast_505.Parsetree.Pmod_apply_unit (Ast_505.Asttypes.Plain, x0) ->
       Ast_504.Parsetree.Pmod_apply_unit (copy_module_expr x0)
+  | Ast_505.Parsetree.Pmod_apply_unit (Ast_505.Asttypes.Template, x0) ->
+      Ast_504.Parsetree.Pmod_apply_unit
+        (mark_template_mod (copy_module_expr x0))
   | Ast_505.Parsetree.Pmod_constraint (x0, x1) ->
       Ast_504.Parsetree.Pmod_constraint
         (copy_module_expr x0, copy_module_type x1)
@@ -1331,9 +1374,12 @@ and copy_structure_item_desc_with_loc ~loc :
     Ast_504.Parsetree.structure_item_desc = function
   | Ast_505.Parsetree.Pstr_eval (x0, x1) ->
       Ast_504.Parsetree.Pstr_eval (copy_expression x0, copy_attributes x1)
-  | Ast_505.Parsetree.Pstr_value (x0, x1) ->
+  | Ast_505.Parsetree.Pstr_value (x0, Ast_505.Asttypes.Value, x1) ->
       Ast_504.Parsetree.Pstr_value
         (copy_rec_flag x0, List.map copy_value_binding x1)
+  | Ast_505.Parsetree.Pstr_value (x0, Ast_505.Asttypes.Macro, x1) ->
+      Encoding_505.To_504.encode_pstr_value_macro ~loc (copy_rec_flag x0)
+        (List.map copy_value_binding x1)
   | Ast_505.Parsetree.Pstr_primitive x0 ->
       Ast_504.Parsetree.Pstr_primitive (copy_value_description x0)
   | Ast_505.Parsetree.Pstr_type (x0, x1) ->

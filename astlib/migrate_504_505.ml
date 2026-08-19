@@ -4,6 +4,15 @@ module To = Ast_505
 
 let copy_location x = x
 
+let extract_template_mod (me : Ast_504.Parsetree.module_expr) =
+  match
+    Encoding_505.To_504.extract_template me.Ast_504.Parsetree.pmod_attributes
+  with
+  | Some rest ->
+      ( Ast_505.Asttypes.Template,
+        { me with Ast_504.Parsetree.pmod_attributes = rest } )
+  | None -> (Ast_505.Asttypes.Plain, me)
+
 let rec copy_longident : Ast_504.Longident.t -> Ast_505.Longident.t = function
   | Ast_504.Longident.Lident x0 -> Ast_505.Longident.Lident x0
   | Ast_504.Longident.Ldot (x0, x1) ->
@@ -522,6 +531,14 @@ and copy_expression_desc :
     when String.equal txt Encoding_505.Ext_name.pexp_struct_item ->
       let si, e = Encoding_505.To_504.decode_pexp_struct_item ~loc payload in
       Pexp_struct_item (copy_structure_item si, copy_expression e)
+  | Ast_504.Parsetree.Pexp_extension ({ txt; loc }, payload)
+    when String.equal txt Encoding_505.Ext_name.pexp_quote ->
+      Ast_505.Parsetree.Pexp_quote
+        (copy_expression (Encoding_505.To_504.decode_pexp_quote ~loc payload))
+  | Ast_504.Parsetree.Pexp_extension ({ txt; loc }, payload)
+    when String.equal txt Encoding_505.Ext_name.pexp_splice ->
+      Ast_505.Parsetree.Pexp_splice
+        (copy_expression (Encoding_505.To_504.decode_pexp_splice ~loc payload))
   | Ast_504.Parsetree.Pexp_extension x0 ->
       Ast_505.Parsetree.Pexp_extension (copy_extension x0)
   | Ast_504.Parsetree.Pexp_unreachable -> Ast_505.Parsetree.Pexp_unreachable
@@ -604,8 +621,14 @@ and copy_value_description :
        Ast_504.Parsetree.pval_attributes;
        Ast_504.Parsetree.pval_loc;
      } ->
+  let pval_macro, pval_attributes =
+    match Encoding_505.To_504.extract_pval_macro pval_attributes with
+    | Some rest -> (Ast_505.Asttypes.Macro, rest)
+    | None -> (Ast_505.Asttypes.Value, pval_attributes)
+  in
   {
     Ast_505.Parsetree.pval_name = copy_loc (fun x -> x) pval_name;
+    Ast_505.Parsetree.pval_macro;
     Ast_505.Parsetree.pval_type = copy_core_type pval_type;
     Ast_505.Parsetree.pval_prim = List.map (fun x -> x) pval_prim;
     Ast_505.Parsetree.pval_attributes = copy_attributes pval_attributes;
@@ -1020,8 +1043,18 @@ and copy_module_type_desc_with_loc ~loc :
   | Ast_504.Parsetree.Pmty_signature x0 ->
       Ast_505.Parsetree.Pmty_signature (copy_signature x0)
   | Ast_504.Parsetree.Pmty_functor (x0, x1) ->
+      let flag, x1 =
+        match
+          Encoding_505.To_504.extract_template
+            x1.Ast_504.Parsetree.pmty_attributes
+        with
+        | Some rest ->
+            ( Ast_505.Asttypes.Template,
+              { x1 with Ast_504.Parsetree.pmty_attributes = rest } )
+        | None -> (Ast_505.Asttypes.Plain, x1)
+      in
       Ast_505.Parsetree.Pmty_functor
-        (copy_functor_parameter x0, copy_module_type x1)
+        (flag, copy_functor_parameter x0, copy_module_type x1)
   | Ast_504.Parsetree.Pmty_with (x0, x1) ->
       Ast_505.Parsetree.Pmty_with
         (copy_module_type x0, List.map copy_with_constraint x1)
@@ -1247,12 +1280,16 @@ and copy_module_expr_desc :
   | Ast_504.Parsetree.Pmod_structure x0 ->
       Ast_505.Parsetree.Pmod_structure (copy_structure x0)
   | Ast_504.Parsetree.Pmod_functor (x0, x1) ->
+      let flag, x1 = extract_template_mod x1 in
       Ast_505.Parsetree.Pmod_functor
-        (copy_functor_parameter x0, copy_module_expr x1)
+        (flag, copy_functor_parameter x0, copy_module_expr x1)
   | Ast_504.Parsetree.Pmod_apply (x0, x1) ->
-      Ast_505.Parsetree.Pmod_apply (copy_module_expr x0, copy_module_expr x1)
+      let flag, x0 = extract_template_mod x0 in
+      Ast_505.Parsetree.Pmod_apply
+        (flag, copy_module_expr x0, copy_module_expr x1)
   | Ast_504.Parsetree.Pmod_apply_unit x0 ->
-      Ast_505.Parsetree.Pmod_apply_unit (copy_module_expr x0)
+      let flag, x0 = extract_template_mod x0 in
+      Ast_505.Parsetree.Pmod_apply_unit (flag, copy_module_expr x0)
   | Ast_504.Parsetree.Pmod_constraint (x0, x1) ->
       Ast_505.Parsetree.Pmod_constraint
         (copy_module_expr x0, copy_module_type x1)
@@ -1282,7 +1319,9 @@ and copy_structure_item_desc_with_loc ~loc :
       Ast_505.Parsetree.Pstr_eval (copy_expression x0, copy_attributes x1)
   | Ast_504.Parsetree.Pstr_value (x0, x1) ->
       Ast_505.Parsetree.Pstr_value
-        (copy_rec_flag x0, List.map copy_value_binding x1)
+        ( copy_rec_flag x0,
+          Ast_505.Asttypes.Value,
+          List.map copy_value_binding x1 )
   | Ast_504.Parsetree.Pstr_primitive x0 ->
       Ast_505.Parsetree.Pstr_primitive (copy_value_description x0)
   | Ast_504.Parsetree.Pstr_type (x0, x1) ->
@@ -1315,6 +1354,15 @@ and copy_structure_item_desc_with_loc ~loc :
         Encoding_505.To_504.decode_external_pstr_type ~loc payload attr
       in
       copy_structure_item_desc_with_loc ~loc desc
+  | Ast_504.Parsetree.Pstr_extension (({ txt; _ }, payload), _)
+    when String.equal txt Encoding_505.Ext_name.pstr_value_macro ->
+      let rec_flag, vbs =
+        Encoding_505.To_504.decode_pstr_value_macro ~loc payload
+      in
+      Ast_505.Parsetree.Pstr_value
+        ( copy_rec_flag rec_flag,
+          Ast_505.Asttypes.Macro,
+          List.map copy_value_binding vbs )
   | Ast_504.Parsetree.Pstr_extension (x0, x1) ->
       Ast_505.Parsetree.Pstr_extension (copy_extension x0, copy_attributes x1)
 
