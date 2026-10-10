@@ -6,6 +6,21 @@ module Ext_name : sig
   val external_psig : string
   val external_pstr_type : string
   val external_pmty_with : string
+
+  (** MacoCaml constructs (T29): extension/attribute names used to carry
+      quotes, splices, macro bindings and template functors across the
+      504 migration gap.  Rewriters may also construct these nodes
+      directly (e.g. to emit a splice); the 504->505 upgrade migration
+      materialises them into real Parsetree constructs. *)
+
+  val pexp_quote : string
+  val pexp_splice : string
+  val pstr_value_macro : string
+  val pstr_value_static : string
+  val pval_macro : string
+  val pval_static : string
+  val pext_static : string
+  val template : string
 end
 
 module To_504 : sig
@@ -64,4 +79,59 @@ module To_504 : sig
       [Ppat_constraint]. *)
 
   val preserve_ppat_constraint : pattern -> core_type -> pattern_desc
+
+  (** {2 MacoCaml constructs (T29)} *)
+
+  val encode_pexp_quote : loc:Location.t -> expression -> expression_desc
+  val decode_pexp_quote : loc:Location.t -> payload -> expression
+  val encode_pexp_splice : loc:Location.t -> expression -> expression_desc
+  val decode_pexp_splice : loc:Location.t -> payload -> expression
+
+  val encode_pstr_value_macro :
+    loc:Location.t -> rec_flag -> value_binding list -> structure_item_desc
+
+  val decode_pstr_value_macro :
+    loc:Location.t -> payload -> rec_flag * value_binding list
+
+  val encode_pstr_value_static :
+    loc:Location.t -> rec_flag -> value_binding list -> structure_item_desc
+
+  val decode_pstr_value_static :
+    loc:Location.t -> payload -> rec_flag * value_binding list
+
+  val pval_macro_attr : loc:Location.t -> attribute
+
+  val extract_pval_macro : attributes -> attributes option
+  (** Returns [Some rest] (the attributes minus the marker) if the
+      [pval_macro] marker is present, [None] otherwise. *)
+
+  val pval_static_attr : loc:Location.t -> attribute
+
+  val extract_pval_static : attributes -> attributes option
+  (** As {!extract_pval_macro}, for the [pval_static] marker ($val). *)
+
+  val pext_static_attr : loc:Location.t -> attribute
+
+  val extract_pext_static : attributes -> attributes option
+  (** As {!extract_pval_macro}, for the [pext_static] marker: an extension
+      constructor declared [$C] (a compile-time constructor). *)
+
+  val template_attr : loc:Location.t -> attribute
+
+  val extract_template : attributes -> attributes option
+  (** As {!extract_pval_macro}, for the [template] marker.  The marker
+      sits on the child node the encoding designates: the body of an
+      encoded template [Pmty_functor]/[Pmod_functor], and the functor
+      position of an encoded template [Pmod_apply]/[Pmod_apply_unit]. *)
+
+  val template_lid : Ast_504.Longident.t Location.loc -> Ast_504.Longident.t Location.loc
+  (** Marks the functor position of a template application in a long
+      identifier ([F$(M).t]; 5.4's [Lapply] has no kind): [F] becomes
+      [Ldot (F, template)], which no OCaml path can spell because the
+      marker name contains dots. *)
+
+  val extract_template_lid :
+    Ast_504.Longident.t Location.loc -> Ast_504.Longident.t Location.loc option
+  (** [Some f] if the argument is [F] marked by {!template_lid}, [None]
+      otherwise. *)
 end

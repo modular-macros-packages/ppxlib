@@ -141,6 +141,17 @@ and copy_expression_desc_with_loc :
           copy_expression x2,
           copy_direction_flag x3,
           copy_expression x4 )
+  | Ast_503.Parsetree.Pexp_constraint
+      ( ({ pexp_desc = Ast_503.Parsetree.Pexp_pack me; pexp_attributes; _ } as x0),
+        ({ ptyp_desc = Ast_503.Parsetree.Ptyp_package pt; _ } as x1) ) -> (
+      match Encoding_504.To_503.extract_pexp_pack_annotated pexp_attributes with
+      | Some [] when x1.ptyp_attributes = [] ->
+          Ast_504.Parsetree.Pexp_pack (copy_module_expr me, Some (copy_package_type pt))
+      | Some rest ->
+                    Ast_504.Parsetree.Pexp_constraint
+            (copy_expression { x0 with pexp_attributes = rest }, copy_core_type x1)
+      | None ->
+          Ast_504.Parsetree.Pexp_constraint (copy_expression x0, copy_core_type x1))
   | Ast_503.Parsetree.Pexp_constraint (x0, x1) ->
       Ast_504.Parsetree.Pexp_constraint (copy_expression x0, copy_core_type x1)
   | Ast_503.Parsetree.Pexp_coerce (x0, x1, x2) ->

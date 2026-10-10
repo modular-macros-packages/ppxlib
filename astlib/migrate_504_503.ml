@@ -188,7 +188,7 @@ and copy_expression_desc ~loc :
           pexp_desc = module_exp;
           pexp_loc = Location.none;
           pexp_loc_stack = [];
-          pexp_attributes = [];
+          pexp_attributes = [ Encoding_504.To_503.pexp_pack_annotated_attr ~loc ];
         }
       in
       let ct : Ast_503.Parsetree.core_type =

@@ -30,7 +30,7 @@ let parse s =
                           so as not to crash the toplevel (see Genprintval) *)
   | Some v -> v
 
-let rec to_504_plus lid =
+let[@warning "-32"] rec to_504_plus lid =
   let loc = Location.none in
   match lid with
   | Lident s -> Longident_504.Lident s
@@ -40,17 +40,43 @@ let rec to_504_plus lid =
     Longident_504.Lapply
       ({txt = to_504_plus lid; loc}, {txt= to_504_plus lid2; loc})
 
-let rec from_504_plus lid =
+let[@warning "-32"] rec from_504_plus lid =
   match lid with
   | Longident_504.Lident s -> Lident s
   | Longident_504.Ldot (lid, s) -> Ldot (from_504_plus lid.txt, s.txt)
   | Longident_504.Lapply (lid, lid2) ->
     Lapply (from_504_plus lid.txt, from_504_plus lid2.txt)
 
+let template_mark = Encoding_505.Ext_name.template
+
+let[@warning "-32"] rec to_505_plus lid =
+  let loc = Location.none in
+  match lid with
+  | Lident s -> Longident_505.Lident s
+  | Ldot (lid, s) ->
+    Longident_505.Ldot ({txt = to_505_plus lid; loc}, { txt = s; loc})
+  | Lapply (Ldot (lid, s), lid2) when String.equal s template_mark ->
+    Longident_505.Lapply
+      (Template, {txt = to_505_plus lid; loc}, {txt = to_505_plus lid2; loc})
+  | Lapply (lid, lid2) ->
+    Longident_505.Lapply
+      (Plain, {txt = to_505_plus lid; loc}, {txt = to_505_plus lid2; loc})
+
+let[@warning "-32"] rec from_505_plus lid =
+  match lid with
+  | Longident_505.Lident s -> Lident s
+  | Longident_505.Ldot (lid, s) -> Ldot (from_505_plus lid.txt, s.txt)
+  | Longident_505.Lapply (Plain, lid, lid2) ->
+    Lapply (from_505_plus lid.txt, from_505_plus lid2.txt)
+  | Longident_505.Lapply (Template, lid, lid2) ->
+    Lapply (Ldot (from_505_plus lid.txt, template_mark), from_505_plus lid2.txt)
+
 let to_compiler lid =
   (*IF_NOT_AT_LEAST 504 lid *)
-  (*IF_AT_LEAST 504 to_504_plus lid *)
+  (*IF_EXACTLY 504 to_504_plus lid *)
+  (*IF_AT_LEAST 505 to_505_plus lid *)
 
 let from_compiler lid =
   (*IF_NOT_AT_LEAST 504 lid *)
-  (*IF_AT_LEAST 504 from_504_plus lid *)
+  (*IF_EXACTLY 504 from_504_plus lid *)
+  (*IF_AT_LEAST 505 from_505_plus lid *)

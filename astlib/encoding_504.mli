@@ -5,6 +5,7 @@ module Ext_name : sig
   val bivariant_pstr : string
   val bivariant_psig : string
   val bivariant_pmty_with : string
+  val pexp_pack_annotated : string
 end
 
 module To_503 : sig
@@ -75,6 +76,12 @@ module To_503 : sig
     loc:Location.t -> payload -> attributes -> signature_item_desc
 
   val decode_bivariant_pmty_with : loc:Location.t -> payload -> module_type_desc
+
+  val pexp_pack_annotated_attr : loc:Location.t -> attribute
+
+  val extract_pexp_pack_annotated : attributes -> attributes option
+  (** [Some rest] (the attributes minus the marker) if the
+      [pexp_pack_annotated] marker is present, [None] otherwise. *)
 end
 
 module To_502 : sig

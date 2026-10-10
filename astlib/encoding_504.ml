@@ -8,6 +8,7 @@ module Ext_name = struct
   let bivariant_pstr = "ppxlib.migration.bivariant_str_item_5_4"
   let bivariant_psig = "ppxlib.migration.bivariant_sig_item_5_4"
   let bivariant_pmty_with = "ppxlib.migration.bivariant_pmty_with_5_4"
+  let pexp_pack_annotated = "ppxlib.migration.pexp_pack_annotated_5_4"
 end
 
 let invalid_encoding ~loc name =
@@ -507,6 +508,19 @@ module To_503 = struct
         ] ->
         x
     | _ -> invalid_encoding ~loc "bivariant pmty_with"
+
+    let pexp_pack_annotated_attr ~loc =
+    let loc = { loc with Location.loc_ghost = true } in
+    {
+      attr_name = { txt = Ext_name.pexp_pack_annotated; loc };
+      attr_payload = PStr [];
+      attr_loc = loc;
+    }
+
+  let extract_pexp_pack_annotated attrs =
+    List.without_first attrs ~pred:(fun attr ->
+        String.equal attr.attr_name.txt Ext_name.pexp_pack_annotated)
+    |> Option.map snd
 end
 
 module To_502 = struct

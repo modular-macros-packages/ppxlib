@@ -15,6 +15,14 @@ rule rewrite is_current ocaml_version = parse
       print_string chunk;
       rewrite is_current ocaml_version lexbuf
     }
+  |          "(*IF_EXACTLY " ([^'*' ' ']* as v) " " (([^'*'] | '*' [^')'])* as s) "*)"
+    { let chunk = if v = ocaml_version
+        then "             " ^ String.make (String.length v + 1) ' ' ^ s ^          "  "
+        else Lexing.lexeme lexbuf
+      in
+      print_string chunk;
+      rewrite is_current ocaml_version lexbuf
+    }
   |          "(*IF_NOT_AT_LEAST " ([^'*' ' ']* as v) " " (([^'*'] | '*' [^')'])* as s) "*)"
     { let chunk = if not (v <= ocaml_version)
         then "                  " ^ String.make (String.length v + 1) ' ' ^ s ^          "  "
